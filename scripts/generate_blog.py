@@ -59,9 +59,9 @@ def summarize_body(body: str, length: int = 140) -> str:
 
 
 def fetch_issues(
-    token: str, repository: str, allowed_author: str, label: str | None = None
+    token: str, repository: str, label: str | None = None, allowed_author: str | None = None
 ) -> List[MutableMapping[str, str]]:
-    """从 GitHub API 获取 Issues"""
+    """Fetch issues from GitHub API"""
     url = f"https://api.github.com/repos/{repository}/issues"
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
     params = {
@@ -101,6 +101,7 @@ def fetch_issues(
         params = None
 
     return issues
+
 
 
 def render_post(issue: Mapping[str, str]) -> str:
