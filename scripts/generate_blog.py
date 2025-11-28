@@ -1,16 +1,3 @@
-"""Generate static blog pages from GitHub Issues.
-
-This script expects the following environment variables:
-- GITHUB_TOKEN: GitHub token with repo and issues read permissions.
-- GITHUB_REPOSITORY: Owner/repo identifier, provided automatically in Actions.
-- BLOG_LABEL: Optional label used to filter Issues (default: "blog-post").
-- BLOG_OWNER: Optional GitHub login allowed to publish posts (defaults to repository owner).
-
-It renders:
-- Individual HTML files per Issue inside the `_posts` directory.
-- The list page `list.html` with summaries and links to posts.
-- The homepage `index.html` using author data from `config/author.json`.
-"""
 from __future__ import annotations
 
 import datetime as dt
@@ -19,22 +6,14 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, List, Mapping, MutableMapping
+from typing import List, Mapping, MutableMapping
 
 from urllib import parse, request
+import markdown  # 使用 markdown 库的 markdown 函数
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from markdown import markdown as render_markdown  # noqa: E402
-from markdown import markdown  # noqa: E402
-from pathlib import Path
-from typing import Iterable, List, Mapping, MutableMapping
-
-import markdown
-from urllib import parse, request
-
-ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config" / "author.json"
 POST_DIR = ROOT / "_posts"
 INDEX_FILE = ROOT / "index.html"
@@ -42,6 +21,7 @@ LIST_FILE = ROOT / "list.html"
 
 
 def load_author_config() -> Mapping[str, str]:
+    """加载作者配置"""
     default = {
         "name": "轻松博客",
         "tagline": "记录灵感，自动上线",
@@ -59,16 +39,19 @@ def load_author_config() -> Mapping[str, str]:
 
 
 def slugify(title: str) -> str:
+    """生成文章的 slug"""
     slug = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "-", title).strip("-").lower()
     return slug or "post"
 
 
 def repository_url() -> str:
+    """获取仓库的 URL"""
     repo = os.getenv("GITHUB_REPOSITORY", "your-name/blog-repo")
     return f"https://github.com/{repo}"
 
 
 def summarize_body(body: str, length: int = 140) -> str:
+    """从 Issue 内容中提取摘要"""
     condensed = re.sub(r"\s+", " ", body).strip()
     if len(condensed) <= length:
         return condensed
@@ -78,6 +61,7 @@ def summarize_body(body: str, length: int = 140) -> str:
 def fetch_issues(
     token: str, repository: str, allowed_author: str, label: str | None = None
 ) -> List[MutableMapping[str, str]]:
+    """从 GitHub API 获取 Issues"""
     url = f"https://api.github.com/repos/{repository}/issues"
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
     params = {
@@ -88,6 +72,7 @@ def fetch_issues(
     }
     if label:
         params["labels"] = label
+
     issues: List[MutableMapping[str, str]] = []
 
     while url:
@@ -116,63 +101,13 @@ def fetch_issues(
         params = None
 
     return issues
-  token: str, repository: str, label: str | None = None, allowed_author: str | None = None
-) -> List[MutableMapping[str, str]]:
-  """Fetch issues from GitHub API.
-
-  - `label`: optional label to filter issues (e.g. "blog-post").
-  - `allowed_author`: if provided, only issues authored by this login are returned.
-  """
-  url = f"https://api.github.com/repos/{repository}/issues"
-  headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
-  params = {
-    "state": "open",
-    "per_page": 100,
-    "sort": "created",
-    "direction": "desc",
-  }
-  if label:
-    params["labels"] = label
-
-  issues: List[MutableMapping[str, str]] = []
-
-  while url:
-    query = f"?{parse.urlencode(params)}" if params else ""
-    req = request.Request(url + query, headers=headers)
-    with request.urlopen(req) as resp:
-      payload = resp.read()
-      link_header = resp.headers.get("Link", "")
-
-    page_items = [item for item in json.loads(payload) if "pull_request" not in item]
-    for issue in page_items:
-      if allowed_author and issue.get("user", {}).get("login") != allowed_author:
-        continue
-      issues.append(issue)
-
-    # Parse Link header to find next page URL (if any)
-    url = None
-    for link in link_header.split(","):
-      segments = link.split(";")
-      if len(segments) < 2:
-        continue
-      if 'rel="next"' in segments[1]:
-        candidate = segments[0].strip()
-        if candidate.startswith("<") and candidate.endswith(">"):
-          url = candidate[1:-1]
-        break
-    params = None
-
-  return issues
 
 
 def render_post(issue: Mapping[str, str]) -> str:
+    """渲染单篇文章为 HTML"""
     title = issue["title"]
     created_at = dt.datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
-    body_html = render_markdown(issue.get("body", ""))
-    body_html = markdown(issue.get("body", ""))
-    body_html = markdown.markdown(
-        issue.get("body", ""), extensions=["fenced_code", "tables", "toc"]
-    )
+    body_html = markdown.markdown(issue.get("body", ""), extensions=["fenced_code", "tables", "toc"])
     slug = slugify(title)
     return f"""<!DOCTYPE html>
 <html lang=\"zh-CN\">
@@ -199,6 +134,7 @@ def render_post(issue: Mapping[str, str]) -> str:
 
 
 def write_post_files(issues: Iterable[Mapping[str, str]]) -> List[Mapping[str, str]]:
+    """将每个 Issue 渲染成 HTML 文件并保存"""
     POST_DIR.mkdir(parents=True, exist_ok=True)
     metadata: List[Mapping[str, str]] = []
 
@@ -221,6 +157,7 @@ def write_post_files(issues: Iterable[Mapping[str, str]]) -> List[Mapping[str, s
 
 
 def render_list(posts: List[Mapping[str, str]]) -> str:
+    """渲染文章列表页面"""
     sorted_posts = sorted(posts, key=lambda post: post["created_at"], reverse=True)
     cards = []
     for post in sorted_posts:
@@ -260,6 +197,7 @@ def render_list(posts: List[Mapping[str, str]]) -> str:
 
 
 def render_index(author: Mapping[str, str]) -> str:
+    """渲染首页"""
     return f"""<!DOCTYPE html>
 <html lang=\"zh-CN\">
 <head>
@@ -289,11 +227,13 @@ def render_index(author: Mapping[str, str]) -> str:
 
 
 def write_site_files(posts: List[Mapping[str, str]], author: Mapping[str, str]) -> None:
+    """生成并保存所有静态网页文件"""
     LIST_FILE.write_text(render_list(posts), encoding="utf-8")
     INDEX_FILE.write_text(render_index(author), encoding="utf-8")
 
 
 def generate() -> None:
+    """生成静态博客页面"""
     token = os.environ.get("GITHUB_TOKEN")
     repository = os.environ.get("GITHUB_REPOSITORY")
     if not token or not repository:
@@ -304,11 +244,6 @@ def generate() -> None:
     allowed_author = os.environ.get("BLOG_OWNER", repo_owner)
 
     issues = fetch_issues(token, repository, allowed_author=allowed_author, label=label)
-    label = os.environ.get("BLOG_LABEL", "blog-post")
-    repo_owner = repository.split("/", maxsplit=1)[0]
-    allowed_author = os.environ.get("BLOG_OWNER", repo_owner)
-
-    issues = fetch_issues(token, repository, label=label, allowed_author=allowed_author)
     post_metadata = write_post_files(issues)
     author = load_author_config()
     write_site_files(post_metadata, author)
