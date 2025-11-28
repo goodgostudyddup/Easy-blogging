@@ -75,51 +75,53 @@ def summarize_body(body: str, length: int = 140) -> str:
 
 
 def fetch_issues(
-    token: str, repository: str, allowed_author: str, label: str | None = None
+  token: str, repository: str, label: str | None = None, allowed_author: str | None = None
 ) -> List[MutableMapping[str, str]]:
-def fetch_issues(token: str, repository: str, label: str, allowed_author: str) -> List[MutableMapping[str, str]]:
-    url = f"https://api.github.com/repos/{repository}/issues"
-    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
-    params = {
-        "state": "open",
-        "per_page": 100,
-        "sort": "created",
-        "direction": "desc",
-    }
-    if label:
-        params["labels"] = label
-        "labels": label,
-        "sort": "created",
-        "direction": "desc",
-    }
-    issues: List[MutableMapping[str, str]] = []
+  """Fetch issues from GitHub API.
 
-    while url:
-        query = f"?{parse.urlencode(params)}" if params else ""
-        req = request.Request(url + query, headers=headers)
-        with request.urlopen(req) as resp:
-            payload = resp.read()
-            link_header = resp.headers.get("Link", "")
+  - `label`: optional label to filter issues (e.g. "blog-post").
+  - `allowed_author`: if provided, only issues authored by this login are returned.
+  """
+  url = f"https://api.github.com/repos/{repository}/issues"
+  headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
+  params = {
+    "state": "open",
+    "per_page": 100,
+    "sort": "created",
+    "direction": "desc",
+  }
+  if label:
+    params["labels"] = label
 
-        page_items = [item for item in json.loads(payload) if "pull_request" not in item]
-        for issue in page_items:
-            if issue["user"]["login"] != allowed_author:
-                continue
-            issues.append(issue)
+  issues: List[MutableMapping[str, str]] = []
 
-        url = None
-        for link in link_header.split(","):
-            segments = link.split(";")
-            if len(segments) < 2:
-                continue
-            if 'rel="next"' in segments[1]:
-                candidate = segments[0].strip()
-                if candidate.startswith("<") and candidate.endswith(">"):
-                    url = candidate[1:-1]
-                break
-        params = None
+  while url:
+    query = f"?{parse.urlencode(params)}" if params else ""
+    req = request.Request(url + query, headers=headers)
+    with request.urlopen(req) as resp:
+      payload = resp.read()
+      link_header = resp.headers.get("Link", "")
 
-    return issues
+    page_items = [item for item in json.loads(payload) if "pull_request" not in item]
+    for issue in page_items:
+      if allowed_author and issue.get("user", {}).get("login") != allowed_author:
+        continue
+      issues.append(issue)
+
+    # Parse Link header to find next page URL (if any)
+    url = None
+    for link in link_header.split(","):
+      segments = link.split(";")
+      if len(segments) < 2:
+        continue
+      if 'rel="next"' in segments[1]:
+        candidate = segments[0].strip()
+        if candidate.startswith("<") and candidate.endswith(">"):
+          url = candidate[1:-1]
+        break
+    params = None
+
+  return issues
 
 
 def render_post(issue: Mapping[str, str]) -> str:
