@@ -248,21 +248,26 @@ def generate() -> None:
     token = os.environ.get("GITHUB_TOKEN")
     repository = os.environ.get("GITHUB_REPOSITORY")
     if not token or not repository:
-        # 为了本地测试方便，如果缺少环境变量可以打印提示而不是直接抛出异常
-        # 但在生产环境中抛出异常是正确的
-        raise EnvironmentError("GITHUB_TOKEN and GITHUB_REPOSITORY are required")
+        print("Error: GITHUB_TOKEN and GITHUB_REPOSITORY are required.")
+        return
 
     label = os.environ.get("BLOG_LABEL") or None
     repo_owner = repository.split("/", maxsplit=1)[0]
-    allowed_author = os.environ.get("BLOG_OWNER", repo_owner)
+    
+    # --- 修改开始 ---
+    # 修复逻辑：如果环境变量获取到的是空字符串，也要使用 repo_owner
+    env_author = os.environ.get("BLOG_OWNER")
+    allowed_author = env_author if env_author else repo_owner
+    # --- 修改结束 ---
 
     print(f"Fetching issues from {repository} (Author: {allowed_author}, Label: {label})...")
     issues = fetch_issues(token, repository, allowed_author=allowed_author, label=label)
-    print(f"Found {len(issues)} issues. Generating pages...")
+    print(f"Found {len(issues)} issues.")
+    
     post_metadata = write_post_files(issues)
     author = load_author_config()
     write_site_files(post_metadata, author)
-    print("Done.")
+    print("Blog generated successfully.")
 
 
 if __name__ == "__main__":
