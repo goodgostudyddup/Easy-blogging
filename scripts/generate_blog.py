@@ -27,6 +27,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from markdown import markdown  # noqa: E402
+from pathlib import Path
+from typing import Iterable, List, Mapping, MutableMapping
+
+import markdown
+from urllib import parse, request
+
+ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config" / "author.json"
 POST_DIR = ROOT / "_posts"
 INDEX_FILE = ROOT / "index.html"
@@ -70,6 +77,7 @@ def summarize_body(body: str, length: int = 140) -> str:
 def fetch_issues(
     token: str, repository: str, allowed_author: str, label: str | None = None
 ) -> List[MutableMapping[str, str]]:
+def fetch_issues(token: str, repository: str, label: str, allowed_author: str) -> List[MutableMapping[str, str]]:
     url = f"https://api.github.com/repos/{repository}/issues"
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
     params = {
@@ -80,6 +88,10 @@ def fetch_issues(
     }
     if label:
         params["labels"] = label
+        "labels": label,
+        "sort": "created",
+        "direction": "desc",
+    }
     issues: List[MutableMapping[str, str]] = []
 
     while url:
@@ -114,6 +126,9 @@ def render_post(issue: Mapping[str, str]) -> str:
     title = issue["title"]
     created_at = dt.datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
     body_html = markdown(issue.get("body", ""))
+    body_html = markdown.markdown(
+        issue.get("body", ""), extensions=["fenced_code", "tables", "toc"]
+    )
     slug = slugify(title)
     return f"""<!DOCTYPE html>
 <html lang=\"zh-CN\">
@@ -245,6 +260,11 @@ def generate() -> None:
     allowed_author = os.environ.get("BLOG_OWNER", repo_owner)
 
     issues = fetch_issues(token, repository, allowed_author=allowed_author, label=label)
+    label = os.environ.get("BLOG_LABEL", "blog-post")
+    repo_owner = repository.split("/", maxsplit=1)[0]
+    allowed_author = os.environ.get("BLOG_OWNER", repo_owner)
+
+    issues = fetch_issues(token, repository, label=label, allowed_author=allowed_author)
     post_metadata = write_post_files(issues)
     author = load_author_config()
     write_site_files(post_metadata, author)
