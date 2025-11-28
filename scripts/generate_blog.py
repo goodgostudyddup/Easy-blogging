@@ -27,6 +27,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from markdown import markdown  # noqa: E402
+from pathlib import Path
+from typing import Iterable, List, Mapping, MutableMapping
+
+import markdown
+from urllib import parse, request
+
+ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config" / "author.json"
 POST_DIR = ROOT / "_posts"
 INDEX_FILE = ROOT / "index.html"
@@ -111,6 +118,9 @@ def render_post(issue: Mapping[str, str]) -> str:
     title = issue["title"]
     created_at = dt.datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
     body_html = markdown(issue.get("body", ""))
+    body_html = markdown.markdown(
+        issue.get("body", ""), extensions=["fenced_code", "tables", "toc"]
+    )
     slug = slugify(title)
     return f"""<!DOCTYPE html>
 <html lang=\"zh-CN\">
