@@ -1,0 +1,2 @@
+# Easy-blogging
+轻松博客是一个基于githubpages和GitHubaction的方便的，每个人都能快速搭建的静态博客
