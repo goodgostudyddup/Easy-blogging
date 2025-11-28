@@ -17,6 +17,16 @@ import datetime as dt
 import json
 import os
 import re
+import sys
+from pathlib import Path
+from typing import Iterable, List, Mapping, MutableMapping
+
+from urllib import parse, request
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from markdown import markdown  # noqa: E402
 from pathlib import Path
 from typing import Iterable, List, Mapping, MutableMapping
 
@@ -107,6 +117,7 @@ def fetch_issues(token: str, repository: str, label: str, allowed_author: str) -
 def render_post(issue: Mapping[str, str]) -> str:
     title = issue["title"]
     created_at = dt.datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
+    body_html = markdown(issue.get("body", ""))
     body_html = markdown.markdown(
         issue.get("body", ""), extensions=["fenced_code", "tables", "toc"]
     )
